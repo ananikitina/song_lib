@@ -9,13 +9,14 @@ import (
 )
 
 type Config struct {
-	DbHost     string
-	DbPort     string
-	DbUser     string
-	DbPassword string
-	DbName     string
-	AppPort    string
-	SSLmode    string
+	DbHost      string
+	DbPort      string
+	DbUser      string
+	DbPassword  string
+	DbName      string
+	AppPort     string
+	SSLmode     string
+	ExternalApi string
 }
 
 func LoadConfig() (*Config, error) {
@@ -24,13 +25,14 @@ func LoadConfig() (*Config, error) {
 	}
 
 	config := &Config{
-		DbHost:     os.Getenv("DB_HOST"),
-		DbPort:     os.Getenv("DB_PORT"),
-		DbUser:     os.Getenv("DB_USER"),
-		DbPassword: os.Getenv("DB_PASSWORD"),
-		DbName:     os.Getenv("DB_NAME"),
-		AppPort:    os.Getenv("APP_PORT"),
-		SSLmode:    os.Getenv("SSLMODE"),
+		DbHost:      os.Getenv("DB_HOST"),
+		DbPort:      os.Getenv("DB_PORT"),
+		DbUser:      os.Getenv("DB_USER"),
+		DbPassword:  os.Getenv("DB_PASSWORD"),
+		DbName:      os.Getenv("DB_NAME"),
+		AppPort:     os.Getenv("APP_PORT"),
+		SSLmode:     os.Getenv("SSLMODE"),
+		ExternalApi: os.Getenv("EXTERNAL_API"),
 	}
 
 	return config, nil

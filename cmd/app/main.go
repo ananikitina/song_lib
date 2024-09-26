@@ -38,7 +38,7 @@ func main() {
 	}
 
 	if err := migrations.RunMigration(dsn, log); err != nil {
-		log.Fatalf("failed to run migrations: %v", err)
+		log.Errorf("failed to run migrations: %v", err)
 	}
 
 	songRepository := postgresql.NewSongRepository(db, log)
@@ -47,7 +47,7 @@ func main() {
 
 	router := gin.Default()
 
-	router.POST("", songHandler.AddSong)
+	router.POST("/add-song", songHandler.AddSongHandler)
 
 	err = router.Run(":" + cfg.AppPort)
 	if err != nil {
