@@ -6,4 +6,5 @@ import (
 
 type SongService interface {
 	AddSong(groupName, songName string) (*models.Song, error)
+	GetSongInfo(group, song string) (*models.SongDetail, error)
 }
