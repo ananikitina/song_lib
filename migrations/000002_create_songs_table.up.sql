@@ -3,8 +3,8 @@ CREATE TABLE songs (
     group_name VARCHAR(255) NOT NULL,    
     song_name VARCHAR(255) NOT NULL,     
     release_date VARCHAR(255),                   
-    lyrics TEXT,                         
-    link VARCHAR(255),                   
+    text TEXT,                         
+    link TEXT,                   
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW() 
 );

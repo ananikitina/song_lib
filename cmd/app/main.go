@@ -1,3 +1,20 @@
+// main.go
+
+// @title Song Library API
+// @version 1.0
+// @description This is a simple API for managing songs and their verses in a song library.
+// @termsOfService http://example.com/terms/
+
+// @contact.name API Support
+// @contact.url http://example.com/support
+// @contact.email support@example.com
+
+// @license.name Apache 2.0
+// @license.url http://www.apache.org/licenses/LICENSE-2.0.html
+
+// @host localhost:8080
+// @BasePath /
+// @schemes http
 package main
 
 import (
@@ -10,10 +27,13 @@ import (
 	"gorm.io/gorm/logger"
 
 	"github.com/ananikitina/song_lib/config"
+	_ "github.com/ananikitina/song_lib/docs"
 	"github.com/ananikitina/song_lib/internal/handlers"
 	"github.com/ananikitina/song_lib/internal/repository/postgresql"
 	"github.com/ananikitina/song_lib/internal/service/domain"
 	"github.com/ananikitina/song_lib/migrations"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 func main() {
@@ -47,7 +67,18 @@ func main() {
 
 	router := gin.Default()
 
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	// API routes
+	// @Router /add-song [post]
 	router.POST("/add-song", songHandler.AddSongHandler)
+	// @Router /update-song/{id} [put]
+	router.PUT("/update-song/:id", songHandler.UpdateSongHandler)
+	// @Router /delete-song/{id} [delete]
+	router.DELETE("/delete-song/:id", songHandler.DeleteSongHandler)
+	// @Router /songs [get]
+	router.GET("/songs", songHandler.GetAllSongsHandler)
+	// @Router /songs/{id}/verses [get]
+	router.GET("/songs/:id/verses", songHandler.GetSongVersesWithPaginationHandler)
 
 	err = router.Run(":" + cfg.AppPort)
 	if err != nil {
