@@ -23,6 +23,7 @@ func NewSongRepository(db *gorm.DB, logger *logrus.Logger) repository.SongReposi
 	}
 }
 
+// Добавление песни
 func (r *songRepository) Add(song *models.Song) error {
 	if err := r.db.Create(song).Error; err != nil {
 		r.logger.Errorf("Add: failed to add song to database: %v", err)
@@ -32,6 +33,7 @@ func (r *songRepository) Add(song *models.Song) error {
 	return nil
 }
 
+// Получение всех песен
 func (r *songRepository) GetAll() ([]models.Song, error) {
 	var songs []models.Song
 	res := r.db.Find(&songs)
@@ -44,6 +46,7 @@ func (r *songRepository) GetAll() ([]models.Song, error) {
 	return songs, nil
 }
 
+// Получение песни по ID
 func (r *songRepository) GetById(id uint) (*models.Song, error) {
 	var song models.Song
 	res := r.db.First(&song, id)
@@ -56,14 +59,14 @@ func (r *songRepository) GetById(id uint) (*models.Song, error) {
 	return &song, nil
 }
 
+// Получение песни с фильтрацией и пагинацией
 func (r *songRepository) GetWithFiltersAndPagination(filters map[string]interface{}, page int, pageSize int) ([]models.Song, error) {
 	var songs []models.Song
 	query := r.db.Model(&models.Song{})
 
-	r.logger.Debugf("GetWithFiltersAndPagination: original filters: %v", filters)
+	r.logger.Debugf("GetWithFiltersAndPagination: SQL query: %v", query.Statement.SQL.String())
 	delete(filters, "page")
 	delete(filters, "pageSize")
-
 	for key, value := range filters {
 		query = query.Where(fmt.Sprintf("%s = ?", key), value)
 	}
@@ -79,6 +82,7 @@ func (r *songRepository) GetWithFiltersAndPagination(filters map[string]interfac
 	return songs, nil
 }
 
+// Обновление песни
 func (r *songRepository) Update(song *models.Song) error {
 	r.logger.Infof("Update: updating song in database with ID %d", song.ID)
 	if err := r.db.Save(song).Error; err != nil {
@@ -90,6 +94,7 @@ func (r *songRepository) Update(song *models.Song) error {
 	return nil
 }
 
+// Удаление песни
 func (r *songRepository) Delete(id uint) error {
 	r.logger.Infof("Delete: deleting song from database with ID %d", id)
 	if err := r.db.Delete(&models.Song{}, id).Error; err != nil {
@@ -101,6 +106,7 @@ func (r *songRepository) Delete(id uint) error {
 	return nil
 }
 
+// Получение текста песни с пагинацией по куплетам
 func (r *songRepository) GetVersesWithPagination(id uint, page int, pageSize int) ([]string, error) {
 	var song models.Song
 	res := r.db.First(&song, id)

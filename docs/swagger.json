@@ -4,7 +4,7 @@
     ],
     "swagger": "2.0",
     "info": {
-        "description": "This is a simple API for managing songs and their verses in a song library.",
+        "description": "This is a simple API for managing songs in a song library.",
         "title": "Song Library API",
         "termsOfService": "http://example.com/terms/",
         "contact": {
@@ -23,7 +23,7 @@
     "paths": {
         "/add-song": {
             "post": {
-                "description": "Add a new song and associate it with a group",
+                "description": "Add a new song with a group",
                 "consumes": [
                     "application/json"
                 ],
@@ -71,7 +71,7 @@
         },
         "/delete-song/{id}": {
             "delete": {
-                "description": "Delete a song by ID",
+                "description": "Delete song by ID",
                 "produces": [
                     "application/json"
                 ],

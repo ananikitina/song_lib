@@ -2,7 +2,7 @@
 
 // @title Song Library API
 // @version 1.0
-// @description This is a simple API for managing songs and their verses in a song library.
+// @description This is a simple API for managing songs in a song library.
 // @termsOfService http://example.com/terms/
 
 // @contact.name API Support
@@ -85,6 +85,6 @@ func main() {
 		log.Fatalf("failed to start the server: %v", err)
 		return
 	}
-	// TODO graceful shutdown
+
 	log.Infof("Server has started on port:%s...", cfg.AppPort)
 }

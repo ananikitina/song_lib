@@ -1,7 +1,9 @@
 package domain
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -14,19 +16,56 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// Кастомные ошибки
+var (
+	ErrInvalidID        = errors.New("invalid song ID")
+	ErrEmptyParameters  = errors.New("parameters must not be empty")
+	ErrSongNotFound     = errors.New("song not found")
+	ErrFailedAPIRequest = errors.New("failed to fetch data from external API")
+)
+
 type songService struct {
 	repo   repository.SongRepository
 	logger *logrus.Logger
+	client *http.Client
 }
 
 func NewSongService(repo repository.SongRepository, logger *logrus.Logger) service.SongService {
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
 	return &songService{
 		repo:   repo,
 		logger: logger,
+		client: client,
 	}
 }
 
-func (s *songService) GetSongInfo(groupName, songName string) (*models.SongDetail, error) {
+// Валидация ID
+func (s *songService) validateId(id uint) error {
+	if id <= 0 {
+		return ErrInvalidID
+	}
+	return nil
+}
+
+// Валидация непустых параметров
+func (s *songService) validateNonEmptyParams(params ...string) error {
+	for _, param := range params {
+		if param == "" {
+			return ErrEmptyParameters
+		}
+	}
+	return nil
+}
+
+// Получение информации о песне из внешнего API
+func (s *songService) GetSongInfo(ctx context.Context, groupName, songName string) (*models.SongDetail, error) {
+	if err := s.validateNonEmptyParams(groupName, songName); err != nil {
+		s.logger.Warn("GetSongInfo: groupName or songName is empty")
+		return nil, err
+	}
+
 	s.logger.Infof("GetSongInfo: fetching song info for group: %s and song: %s", groupName, songName)
 
 	cfg, err := config.LoadConfig()
@@ -34,41 +73,31 @@ func (s *songService) GetSongInfo(groupName, songName string) (*models.SongDetai
 		return nil, err
 	}
 
-	// Кодируем параметры group и song
 	encodedGroup := url.QueryEscape(groupName)
 	encodedSong := url.QueryEscape(songName)
-
-	// Формируем URL с закодированными параметрами
 	url := fmt.Sprintf("%s/info?group=%s&song=%s", cfg.ExternalApi, encodedGroup, encodedSong)
 
-	resp, err := http.Get(url)
+	// Создание запроса с контекстом
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		s.logger.Debugf("GetSongInfo: failed to fetch data from external API: %v", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		s.logger.Errorf("GetSongInfo: failed to fetch data from external API: %v", err)
+		return nil, ErrFailedAPIRequest
 	}
 	defer resp.Body.Close()
 
-	if resp.Body == nil {
-		s.logger.Debugf("GetSongInfo: received empty response body")
-		return nil, fmt.Errorf("received empty response body")
-	}
-
-	if resp.StatusCode == http.StatusBadRequest {
-		s.logger.Debugf("GetSongInfo: received 400 Bad Request from external API")
-		return nil, fmt.Errorf("bad request: group or song name is invalid")
-	}
-	if resp.StatusCode == http.StatusInternalServerError {
-		s.logger.Debugf("GetSongInfo: received 500 Internal Server Error from external API")
-		return nil, fmt.Errorf("internal server error from external API")
-	}
 	if resp.StatusCode != http.StatusOK {
-		s.logger.Debugf("GetSongInfo: unexpected status code: %d", resp.StatusCode)
+		s.logger.Errorf("GetSongInfo: unexpected status code: %d", resp.StatusCode)
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
 	var songDetail models.SongDetail
 	if err := json.NewDecoder(resp.Body).Decode(&songDetail); err != nil {
-		s.logger.Debugf("GetSongInfo: failed to decode external API response: %v", err)
+		s.logger.Errorf("GetSongInfo: failed to decode external API response: %v", err)
 		return nil, fmt.Errorf("failed to decode song info response: %w", err)
 	}
 
@@ -76,17 +105,23 @@ func (s *songService) GetSongInfo(groupName, songName string) (*models.SongDetai
 	return &songDetail, nil
 }
 
-func (s *songService) AddSong(groupName, songName string) (*models.Song, error) {
+// Добавление песни
+func (s *songService) AddSong(ctx context.Context, groupName, songName string) (*models.Song, error) {
+	if err := s.validateNonEmptyParams(groupName, songName); err != nil {
+		s.logger.Warn("AddSong: groupName or songName is empty")
+		return nil, err
+	}
+
 	s.logger.Infof("AddSong: creating song: %s with group: %s", songName, groupName)
 
-	// получаем информацию о песне из внешнего API
-	songDetail, err := s.GetSongInfo(groupName, songName)
+	// Получение информации о песне через внешний API
+	songDetail, err := s.GetSongInfo(ctx, groupName, songName)
 	if err != nil {
 		s.logger.Errorf("failed to fetch song info: %v", err)
 		return nil, err
 	}
 
-	// cоздаем новую песню с инфо из API
+	// Создание новой записи песни
 	song := &models.Song{
 		GroupName:   groupName,
 		SongName:    songName,
@@ -95,7 +130,7 @@ func (s *songService) AddSong(groupName, songName string) (*models.Song, error) 
 		Link:        songDetail.Link,
 	}
 
-	// сохраняем песню в базу данных
+	// Сохранение песни в базе данных
 	if err := s.repo.Add(song); err != nil {
 		s.logger.Errorf("AddSong: failed to save song to database: %v", err)
 		return nil, err
@@ -105,27 +140,26 @@ func (s *songService) AddSong(groupName, songName string) (*models.Song, error) 
 	return song, nil
 }
 
+// Получение песни по ID
 func (s *songService) GetSongById(id uint) (*models.Song, error) {
-	s.logger.Infof("GetSongById: getting song with id: %d", id)
-	song, err := s.repo.GetById(id)
-	if err != nil {
-		s.logger.Debugf("GetSongById: failed to fetch song from database: %v", err)
+	if err := s.validateId(id); err != nil {
+		s.logger.Warn("GetSongById: invalid id")
 		return nil, err
 	}
 
+	s.logger.Infof("GetSongById: getting song with id: %d", id)
+
+	song, err := s.repo.GetById(id)
+	if err != nil {
+		s.logger.Errorf("GetSongById: failed to fetch song from database: %v", err)
+		return nil, ErrSongNotFound
+	}
+
 	s.logger.Infof("GetSongById: got song with ID: %d", song.ID)
-	return &models.Song{
-		ID:          song.ID,
-		GroupName:   song.GroupName,
-		SongName:    song.SongName,
-		ReleaseDate: song.ReleaseDate,
-		Text:        song.Text,
-		Link:        song.Link,
-		CreatedAt:   song.CreatedAt,
-		UpdatedAt:   song.UpdatedAt,
-	}, nil
+	return song, nil
 }
 
+// Получение всех песен
 func (s *songService) GetAllSongs() ([]models.Song, error) {
 	s.logger.Info("GetAllSongs: fetching all songs")
 	songs, err := s.repo.GetAll()
@@ -133,35 +167,45 @@ func (s *songService) GetAllSongs() ([]models.Song, error) {
 		s.logger.Errorf("GetAllSongs: failed to fetch songs: %v", err)
 		return nil, err
 	}
-
 	return songs, nil
 }
 
+// Вспомогательная функция для обновления полей песни
+func updateNonEmptyFields(target, source *models.Song) {
+	if source.GroupName != "" {
+		target.GroupName = source.GroupName
+	}
+	if source.SongName != "" {
+		target.SongName = source.SongName
+	}
+	if source.ReleaseDate != "" {
+		target.ReleaseDate = source.ReleaseDate
+	}
+	if source.Text != "" {
+		target.Text = source.Text
+	}
+	if source.Link != "" {
+		target.Link = source.Link
+	}
+}
+
+// Обновление песни
 func (s *songService) UpdateSong(songId uint, updatedSong models.Song) (*models.Song, error) {
+	if err := s.validateId(songId); err != nil {
+		s.logger.Warn("UpdateSong: invalid id")
+		return nil, err
+	}
+
 	s.logger.Infof("UpdateSong: updating song with ID: %d", songId)
 
 	song, err := s.repo.GetById(songId)
 	if err != nil {
 		s.logger.Errorf("UpdateSong: failed to update song: %v", err)
-		return nil, err
+		return nil, ErrSongNotFound
 	}
 
-	if updatedSong.GroupName != "" {
-		song.GroupName = updatedSong.GroupName
-	}
-	if updatedSong.SongName != "" {
-		song.SongName = updatedSong.SongName
-	}
-	if updatedSong.ReleaseDate != "" {
-		song.ReleaseDate = updatedSong.ReleaseDate
-	}
-	if updatedSong.Text != "" {
-		song.Text = updatedSong.Text
-	}
-	if updatedSong.Link != "" {
-		song.Link = updatedSong.Link
-	}
-
+	// Обновление полей песни
+	updateNonEmptyFields(song, &updatedSong)
 	song.UpdatedAt = time.Now()
 
 	if err := s.repo.Update(song); err != nil {
@@ -170,19 +214,16 @@ func (s *songService) UpdateSong(songId uint, updatedSong models.Song) (*models.
 	}
 
 	s.logger.Infof("UpdateSong: song updated with ID: %d", song.ID)
-	return &models.Song{
-		ID:          song.ID,
-		GroupName:   song.GroupName,
-		SongName:    song.SongName,
-		ReleaseDate: song.ReleaseDate,
-		Text:        song.Text,
-		Link:        song.Link,
-		CreatedAt:   song.CreatedAt,
-		UpdatedAt:   time.Now(),
-	}, nil
+	return song, nil
 }
 
+// Удаление песни
 func (s *songService) DeleteSong(id uint) error {
+	if err := s.validateId(id); err != nil {
+		s.logger.Warn("DeleteSong: invalid id")
+		return err
+	}
+
 	s.logger.Infof("DeleteSong: deleting song with ID: %d", id)
 	if err := s.repo.Delete(id); err != nil {
 		s.logger.Errorf("DeleteSong: failed to delete song: %v", err)
@@ -192,34 +233,36 @@ func (s *songService) DeleteSong(id uint) error {
 	return nil
 }
 
+// Получение песен с фильтрацией и пагинацией
 func (s *songService) GetSongsWithFiltersAndPagination(filters map[string]interface{}, page int, pageSize int) ([]models.Song, error) {
-	s.logger.Infof("GetSongsWithFiltersAndPagination: fetching songs with filters and pagination: filters=%d page=%d, pageSize=%d",
-		len(filters), page, pageSize)
+	if page <= 0 || pageSize <= 0 {
+		s.logger.Warn("GetSongsWithFiltersAndPagination: page and pageSize must be greater than zero")
+		return nil, fmt.Errorf("page and pageSize must be greater than zero")
+	}
+
+	s.logger.Infof("GetSongsWithFiltersAndPagination: fetching songs with filters %v, page: %d, pageSize: %d", filters, page, pageSize)
+
 	songs, err := s.repo.GetWithFiltersAndPagination(filters, page, pageSize)
 	if err != nil {
-		s.logger.Debugf("GetSongsWithFiltersAndPagination: failed to fetch songs: %v", err)
+		s.logger.Errorf("GetSongsWithFiltersAndPagination: failed to fetch songs with filters: %v", err)
 		return nil, err
 	}
 
-	var allSongs []models.Song
-	for _, fetchedSong := range songs {
-		song := models.Song{
-			ID:          fetchedSong.ID,
-			GroupName:   fetchedSong.GroupName,
-			SongName:    fetchedSong.SongName,
-			ReleaseDate: fetchedSong.ReleaseDate,
-			Text:        fetchedSong.Text,
-			Link:        fetchedSong.Link,
-			CreatedAt:   fetchedSong.CreatedAt,
-			UpdatedAt:   fetchedSong.UpdatedAt,
-		}
-		allSongs = append(allSongs, song)
-	}
-
-	return allSongs, nil
+	return songs, nil
 }
 
+// Получение текста песни с пагинацией по куплетам
 func (s *songService) GetSongVersesWithPagination(songId uint, page int, pageSize int) ([]string, error) {
+	if page <= 0 || pageSize <= 0 {
+		s.logger.Warn("GetSongsWithFiltersAndPagination : page and pageSize must be greater than zero")
+		return nil, fmt.Errorf("page and pageSize must be greater than zero")
+	}
+
+	if err := s.validateId(songId); err != nil {
+		s.logger.Warn("GetSongVersesWithPagination: invalid songId")
+		return nil, err
+	}
+
 	s.logger.Infof("GetSongVersesWithPagination: fetching verses for song ID: %d", songId)
 	verses, err := s.repo.GetVersesWithPagination(songId, page, pageSize)
 	if err != nil {

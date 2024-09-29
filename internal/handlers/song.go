@@ -22,6 +22,7 @@ func NewSongHandler(songService service.SongService, logger *logrus.Logger) *Son
 	}
 }
 
+// Получение ID песни
 func (h *SongHandler) parseSongID(c *gin.Context) (uint, error) {
 	songID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -31,6 +32,7 @@ func (h *SongHandler) parseSongID(c *gin.Context) (uint, error) {
 	return uint(songID), nil
 }
 
+// Получение параметров пагинации
 func (h *SongHandler) getPaginationParams(c *gin.Context) (int, int) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
@@ -46,7 +48,7 @@ func (h *SongHandler) getPaginationParams(c *gin.Context) (int, int) {
 }
 
 // @Summary Add new song
-// @Description Add a new song and associate it with a group
+// @Description Add a new song with a group
 // @Tags songs
 // @Accept json
 // @Produce json
@@ -65,7 +67,7 @@ func (h *SongHandler) AddSongHandler(c *gin.Context) {
 	}
 
 	h.logger.Infof("AddSongHandler: adding song: %s, and group: %s", req.Song, req.Group)
-	song, err := h.songService.AddSong(req.Group, req.Song)
+	song, err := h.songService.AddSong(c.Request.Context(), req.Group, req.Song)
 	if err != nil {
 		h.logger.Debugf("AddSongHandler: failed to add song: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -110,11 +112,11 @@ func (h *SongHandler) UpdateSongHandler(c *gin.Context) {
 	}
 
 	h.logger.Infof("UpdateSongHandler: song updated with ID: %d", songID)
-	c.JSON(http.StatusOK, updatedSong)
+	c.JSON(http.StatusOK, gin.H{"data": updatedSong})
 }
 
 // @Summary Delete song
-// @Description Delete a song by ID
+// @Description Delete song by ID
 // @Tags songs
 // @Produce json
 // @Param id path int true "Song ID"
@@ -168,7 +170,7 @@ func (h *SongHandler) GetAllSongsHandler(c *gin.Context) {
 	}
 
 	h.logger.Infof("GetAllSongsHandler: fetched %d songs", len(songs))
-	c.JSON(http.StatusOK, songs)
+	c.JSON(http.StatusOK, gin.H{"songs": songs})
 }
 
 // @Summary Get song verses with pagination

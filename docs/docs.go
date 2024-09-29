@@ -26,7 +26,7 @@ const docTemplate = `{
     "paths": {
         "/add-song": {
             "post": {
-                "description": "Add a new song and associate it with a group",
+                "description": "Add a new song with a group",
                 "consumes": [
                     "application/json"
                 ],
@@ -74,7 +74,7 @@ const docTemplate = `{
         },
         "/delete-song/{id}": {
             "delete": {
-                "description": "Delete a song by ID",
+                "description": "Delete song by ID",
                 "produces": [
                     "application/json"
                 ],
@@ -337,7 +337,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/",
 	Schemes:          []string{"http"},
 	Title:            "Song Library API",
-	Description:      "This is a simple API for managing songs and their verses in a song library.",
+	Description:      "This is a simple API for managing songs in a song library.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

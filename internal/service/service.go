@@ -1,12 +1,14 @@
 package service
 
 import (
+	"context"
+
 	"github.com/ananikitina/song_lib/internal/models"
 )
 
 type SongService interface {
-	AddSong(groupName, songName string) (*models.Song, error)
-	GetSongInfo(group, song string) (*models.SongDetail, error)
+	AddSong(ctx context.Context, groupName, songName string) (*models.Song, error)
+	GetSongInfo(ctx context.Context, groupName, songName string) (*models.SongDetail, error)
 	GetSongById(id uint) (*models.Song, error)
 	GetAllSongs() ([]models.Song, error)
 	UpdateSong(songId uint, updatedSong models.Song) (*models.Song, error)

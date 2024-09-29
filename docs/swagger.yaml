@@ -35,8 +35,7 @@ info:
     email: support@example.com
     name: API Support
     url: http://example.com/support
-  description: This is a simple API for managing songs and their verses in a song
-    library.
+  description: This is a simple API for managing songs in a song library.
   license:
     name: Apache 2.0
     url: http://www.apache.org/licenses/LICENSE-2.0.html
@@ -48,7 +47,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: Add a new song and associate it with a group
+      description: Add a new song with a group
       parameters:
       - description: Add song request
         in: body
@@ -78,7 +77,7 @@ paths:
       - songs
   /delete-song/{id}:
     delete:
-      description: Delete a song by ID
+      description: Delete song by ID
       parameters:
       - description: Song ID
         in: path
